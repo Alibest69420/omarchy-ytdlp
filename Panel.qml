@@ -299,8 +299,12 @@ Panel {
     activeColor: root.accent
     active: root.engine.busy
     fontFamily: root.fontFamily
-    fontSize: Style.font.body
+    fontSize: Style.bar.iconFont
     horizontalMargin: Style.space(7)
+    fixedWidth: button.bar && button.bar.vertical ? -1
+      : Math.max(Style.bar.iconSlot, (root.engine.currentJob || root.engine.queuedCount > 0)
+        ? button.labelWidth + button.scaledHorizontalMargin * 2 : 0)
+    fixedHeight: button.bar && button.bar.vertical ? Style.bar.iconSlot : -1
     tooltipText: root.tooltipText()
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) root.showSettings()
