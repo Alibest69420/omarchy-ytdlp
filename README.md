@@ -54,29 +54,22 @@ omarchy bar move ddrglazer.ytdlp --section right --index 4
 ### Choose placement during install
 
 Omarchy's own installer only clones and enables a plugin; it does not run
-repository install hooks. This repo includes a small wrapper that asks where
-the widget should go:
+repository install hooks or ask where the widget should go. This repo includes
+a small helper that runs after installation and asks for the bar section:
 
 ```bash
-git clone https://github.com/Alibest69420/omarchy-ytdlp.git
-cd omarchy-ytdlp
-./install.sh
+omarchy plugin add https://github.com/Alibest69420/omarchy-ytdlp.git --enable --yes
+~/.config/omarchy/plugins/ddrglazer.ytdlp/install.sh
 ```
 
 It offers **left**, **right**, or **center** (default: left). For unattended
 installs:
 
 ```bash
-./install.sh right
+~/.config/omarchy/plugins/ddrglazer.ytdlp/install.sh right
 ```
 
-If the plugin is already installed, run the copy inside the plugin folder:
-
-```bash
-~/.config/omarchy/plugins/ddrglazer.ytdlp/install.sh center
-```
-
-The wrapper uses the normal `omarchy plugin add` and `omarchy bar move`
+The helper uses the normal `omarchy plugin add` and `omarchy bar move`
 commands and leaves saved settings untouched.
 
 ## Remove
