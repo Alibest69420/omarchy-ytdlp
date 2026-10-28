@@ -239,24 +239,17 @@ Panel {
       if (job.status === "done") root.lastCompletedDir = root.expandPath(job.dir)
       if (!root.setting("notifications", true)) return
 
-      var title = job.title && job.title !== job.url ? job.title : job.url
+      // Notifications are intentionally generic: command-line arguments are
+      // visible to other local users while the process runs. Titles, errors and
+      // output paths stay in the panel's queue instead of entering argv.
       var done = job.status === "done"
-      var headline = done ? "Download complete" : "Download failed"
-      var body = done
-        ? title + "\nSaved to " + root.expandPath(job.dir)
-        : title + "\n" + (job.error || "yt-dlp exited with an error")
       var args = [
         "omarchy-notification-send",
         "-u", done ? "low" : "normal",
         "-g", done ? "󰇚" : "󰅚",
-        headline,
-        body
+        done ? "Download complete" : "Download failed",
+        "Open the panel for details."
       ]
-      if (done) {
-        args.push("--exec")
-        args.push("xdg-open")
-        args.push(root.expandPath(job.dir))
-      }
       Quickshell.execDetached(args)
     }
   }
