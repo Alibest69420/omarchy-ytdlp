@@ -51,6 +51,34 @@ It lands in the left side of the bar by default. Move it with:
 omarchy bar move ddrglazer.ytdlp --section right --index 4
 ```
 
+### Choose placement during install
+
+Omarchy's own installer only clones and enables a plugin; it does not run
+repository install hooks. This repo includes a small wrapper that asks where
+the widget should go:
+
+```bash
+git clone https://github.com/Alibest69420/omarchy-ytdlp.git
+cd omarchy-ytdlp
+./install.sh
+```
+
+It offers **left**, **right**, or **center** (default: left). For unattended
+installs:
+
+```bash
+./install.sh right
+```
+
+If the plugin is already installed, run the copy inside the plugin folder:
+
+```bash
+~/.config/omarchy/plugins/ddrglazer.ytdlp/install.sh center
+```
+
+The wrapper uses the normal `omarchy plugin add` and `omarchy bar move`
+commands and leaves saved settings untouched.
+
 ## Remove
 
 ```bash
@@ -156,6 +184,7 @@ active downloads and clears the queue. Finished files stay in their folders.
 manifest.json      Plugin metadata and defaults
 Panel.qml          Bar widget, popup lifecycle, notifications, IPC
 DownloadEngine.qml Sequential yt-dlp queue, progress parsing
+install.sh         Installer wrapper with bar placement prompt
 Card.qml           Download popup
 JobRow.qml         One queue row
 Settings.qml       Settings page
