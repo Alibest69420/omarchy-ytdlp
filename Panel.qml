@@ -201,7 +201,7 @@ Panel {
     stdout: StdioCollector { waitForEnd: true }
     onExited: function(exitCode) {
       root.toolsOk = exitCode === 0
-      root.toolError = exitCode === 0 ? "" : "yt-dlp and ffmpeg are required. Install them with: omarchy pkg add yt-dlp"
+      root.toolError = exitCode === 0 ? "" : "yt-dlp and ffmpeg are required. Install the yt-dlp package first."
     }
   }
 

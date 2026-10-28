@@ -70,7 +70,7 @@ plugin. It:
 - writes only its own inline entry in `~/.config/omarchy/shell.json`, and only
   when you press **Apply** in settings
 - writes downloads only to folders you choose
-- never uses `sudo` and does not modify system configuration
+- never requests elevated privileges and does not modify system configuration
 - invokes `yt-dlp`, `ffmpeg`, `zenity`, `wl-paste`, `xdg-open`, `stat`, and
   `omarchy-notification-send`
 
