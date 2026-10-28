@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
-"""Apply yt-dlp metadata without putting private values in a process argv.
+"""Apply yt-dlp metadata without trusting remote IDs or searching the filesystem.
 
-Called with:
-    embed-metadata.py <private-dir> <output-dir> [media-file-hint]
+The caller sends one JSON line on stdin:
 
-yt-dlp writes .info.json files into <private-dir> (a 0700 tmpfs directory),
-and thumbnails are written there too. This helper reads the JSON, writes tags
-with mutagen (Opus) or an ffmpeg ffmetadata file (other containers), then
-overwrites and removes every temporary metadata file before exiting.
+    {
+      "private_dir": "/run/user/1000/ytdlp-private.XXXXXX",
+      "outdir": "/home/user/Music",
+      "records": [
+        {"file": "/home/user/Music/id.opus", "info": "/run/.../id.info.json"}
+      ]
+    }
 
-The title/artist/etc. never appear in a child process command line: the
-ffmpeg command only receives paths, and the ffmetadata file lives inside the
-private tmpfs directory with mode 0600.
+`records` is the exact allowlist produced by the current yt-dlp job. The helper
+never uses a remote ID to find a file, never globs for a target, and refuses any
+path outside the declared output directory or private directory.
+
+Text tags are written with mutagen (Opus) or a mode-0600 ffmetadata file passed
+to ffmpeg (other containers). The ffmetadata file lives in the mode-0700 tmpfs
+private directory. After tagging, the helper overwrites and removes the info
+JSON, ffmetadata file, leftover thumbnails, and the private directory.
 """
 from __future__ import annotations
 
@@ -19,12 +26,52 @@ import json
 import os
 import secrets
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 def log(message: str) -> None:
     print(f"embed-metadata: {message}", file=sys.stderr)
+
+def absolute(raw: object, label: str) -> Path:
+    if not isinstance(raw, str) or raw == "":
+        raise ValueError(f"missing {label}")
+    path = Path(raw)
+    if not path.is_absolute():
+        raise ValueError(f"{label} must be absolute")
+    return Path(os.path.abspath(path))
+
+def safe_file(raw: object, root_lexical: Path, root_resolved: Path, label: str) -> Path:
+    """Return a resolved regular file inside root, rejecting symlinks/escapes."""
+    lexical = absolute(raw, label)
+    root_lexical = Path(os.path.abspath(root_lexical))
+    if not lexical.is_relative_to(root_lexical):
+        raise ValueError(f"{label} is outside its root")
+    relative = lexical.relative_to(root_lexical)
+    if not relative.parts:
+        raise ValueError(f"{label} is the root itself")
+
+    current = root_lexical
+    for part in relative.parts:
+        current = current / part
+        try:
+            mode = current.lstat().st_mode
+        except FileNotFoundError:
+            raise ValueError(f"{label} is missing")
+        if stat.S_ISLNK(mode):
+            raise ValueError(f"{label} uses a symlink")
+
+    resolved = lexical.resolve(strict=True)
+    if not resolved.is_relative_to(root_resolved):
+        raise ValueError(f"{label} resolves outside its root")
+    info = resolved.stat()
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError(f"{label} is not a regular file")
+    if info.st_nlink != 1:
+        raise ValueError(f"{label} has multiple hard links")
+    return resolved
 
 def first(info: dict, keys: tuple[str, ...]) -> str:
     for key in keys:
@@ -53,11 +100,23 @@ def tags_from(info: dict) -> dict[str, str]:
     return {key: value for key, value in tags.items() if value}
 
 def shred(path: Path) -> None:
-    """Overwrite a small metadata file before unlinking it."""
+    """Overwrite a small metadata file before unlinking it.
+
+    Never follow a symlink: a symlink in the private directory must be
+    unlinked, not used to overwrite whatever it points at.
+    """
     try:
-        size = path.stat().st_size
+        if path.is_symlink():
+            path.unlink()
+            return
+        info = path.stat()
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            # Never overwrite a hard-linked inode: that would change the file
+            # outside the private directory too. Unlink our entry only.
+            path.unlink()
+            return
         with path.open("r+b", buffering=0) as handle:
-            handle.write(b"\0" * size)
+            handle.write(b"\0" * info.st_size)
             handle.flush()
             os.fsync(handle.fileno())
     except (FileNotFoundError, OSError):
@@ -75,16 +134,21 @@ def write_ffmeta(path: Path, tags: dict[str, str]) -> None:
     for key, value in tags.items():
         if value:
             lines.append(f"{key}={ff_escape(value)}")
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = os.open(path, flags, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         handle.write("\n".join(lines) + "\n")
 
 def apply_ffmpeg(media: Path, tags: dict[str, str], workdir: Path) -> None:
     metadata = workdir / f"meta-{secrets.token_hex(6)}.ffmeta"
-    temporary = media.with_name(
-        f"{media.stem}.tagtmp-{secrets.token_hex(6)}{media.suffix}"
-    )
     write_ffmeta(metadata, tags)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=".tagtmp-", suffix=media.suffix, dir=str(media.parent)
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
     try:
         result = subprocess.run(
             [
@@ -120,85 +184,97 @@ def apply_opus(media: Path, tags: dict[str, str]) -> None:
             audio[key] = value
     audio.save()
 
-def find_media(info: dict, outdir: Path, hint: Path | None, unique: bool) -> Path | None:
-    if unique and hint is not None and hint.is_file():
-        return hint
-    media_id = str(info.get("id") or "")
-    if not media_id:
-        return None
-    candidates = [
-        path for path in outdir.glob(f"{media_id}.*")
-        if path.is_file()
-        and not path.name.endswith(".info.json")
-        and not path.name.endswith(".part")
-        and path.suffix not in (".json", ".jpg", ".jpeg", ".png", ".webp")
-    ]
-    return candidates[0] if candidates else None
-
 def main() -> int:
-    if len(sys.argv) not in (3, 4):
-        log("usage: embed-metadata.py <private-dir> <output-dir> [media-hint]")
+    line = sys.stdin.readline()
+    if line.strip() == "":
+        log("missing manifest")
+        return 2
+    try:
+        payload = json.loads(line)
+        private_lexical = absolute(payload.get("private_dir"), "private_dir")
+        out_lexical = absolute(payload.get("outdir"), "outdir")
+        records = payload.get("records")
+        if not isinstance(records, list) or not records:
+            raise ValueError("missing records")
+    except Exception:
+        log("invalid manifest")
         return 2
 
-    workdir = Path(sys.argv[1])
-    outdir = Path(sys.argv[2])
-    hint = Path(sys.argv[3]) if len(sys.argv) == 4 and sys.argv[3] else None
-    if not workdir.is_dir():
-        log("private metadata directory is missing")
+    try:
+        private_resolved = private_lexical.resolve(strict=True)
+        out_resolved = out_lexical.resolve(strict=True)
+    except OSError:
+        log("metadata directory is missing")
+        return 1
+    if not private_resolved.is_dir() or not out_resolved.is_dir():
+        log("metadata directory is missing")
+        return 1
+    if private_lexical.is_symlink():
+        log("private directory is a symlink")
         return 1
 
-    infos = sorted(workdir.glob("*.info.json"))
-    unique = len(infos) == 1
+    seen_info: set[Path] = set()
+    seen_media: set[Path] = set()
     failures = 0
 
-    for info_path in infos:
+    for record in records:
+        info_path: Path | None = None
         try:
+            if not isinstance(record, dict):
+                raise ValueError("invalid record")
+            info_path = safe_file(record.get("info"), private_lexical, private_resolved, "info")
+            media_path = safe_file(record.get("file"), out_lexical, out_resolved, "media")
+            if not info_path.name.endswith(".info.json"):
+                raise ValueError("info is not an info JSON file")
+            if media_path.name.endswith(".info.json"):
+                raise ValueError("media is an info JSON file")
+            if media_path.is_relative_to(private_resolved):
+                raise ValueError("media is inside the metadata directory")
+            if info_path in seen_info or media_path in seen_media:
+                raise ValueError("duplicate record")
+            seen_info.add(info_path)
+            seen_media.add(media_path)
+
             info = json.loads(info_path.read_text(encoding="utf-8"))
-        except Exception:
-            log("could not read a metadata file")
-            failures += 1
-            shred(info_path)
-            continue
-
-        media = find_media(info, outdir, hint, unique)
-        if media is None:
-            log("could not match a media file to its metadata")
-            failures += 1
-            shred(info_path)
-            continue
-
-        tags = tags_from(info)
-        try:
-            if media.suffix.lower() == ".opus":
+            tags = tags_from(info)
+            if media_path.suffix.lower() == ".opus":
                 try:
-                    apply_opus(media, tags)
+                    apply_opus(media_path, tags)
                 except ImportError:
                     # Without mutagen there is no Opus cover-art stream to
-                    # preserve, so the ffmpeg path can write the text tags.
-                    apply_ffmpeg(media, tags, workdir)
+                    # preserve, so ffmpeg can write the text tags.
+                    apply_ffmpeg(media_path, tags, private_lexical)
             else:
-                apply_ffmpeg(media, tags, workdir)
-        except Exception as error:
-            # Deliberately do not include the title, URL or tag values here.
-            message = "tagging failed"
-            if isinstance(error, ImportError):
-                message = "opus tagging needs python-mutagen"
-            log(message)
+                apply_ffmpeg(media_path, tags, private_lexical)
+        except Exception:
+            # Never include a title, URL or path in this diagnostic.
+            log("refused or failed a metadata record")
             failures += 1
         finally:
-            shred(info_path)
+            if info_path is not None:
+                shred(info_path)
 
-    # Thumbnails are normally removed by yt-dlp after embedding. If one was
-    # left behind, remove it before removing the private directory.
-    for path in workdir.iterdir():
-        if path.is_file():
+    # Anything left in the private directory is a thumbnail or an unclaimed
+    # info file. Remove it without touching anything outside the directory.
+    for path in private_lexical.iterdir():
+        if path.is_symlink():
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+        elif path.is_file():
             shred(path)
     try:
-        workdir.rmdir()
+        private_lexical.rmdir()
     except OSError:
-        shutil.rmtree(workdir, ignore_errors=True)
+        shutil.rmtree(private_lexical, ignore_errors=True)
 
     return 1 if failures else 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception:
+        # Do not emit a traceback that could contain private paths or values.
+        log("internal failure")
+        sys.exit(1)

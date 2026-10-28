@@ -137,6 +137,10 @@ Item {
         eta: -1,
         filepath: "",
         privateDir: "",
+        manifest: [],
+        fileCount: 0,
+        _pendingFile: "",
+        _pendingInfo: "",
         error: "",
         playlists: Boolean(options.playlists),
         cookies: String(options.cookies),
@@ -203,6 +207,8 @@ Item {
       "--progress-template",
       "download:OMARCHY_DL:%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s|%(progress.eta)s|%(progress._percent_str)s"
     ]
+    if (job.embedMetadata)
+      args.push("--print", "after_move:OMARCHY_INFO:%(infojson_filename)s")
 
     args.push(job.playlists ? "--yes-playlist" : "--no-playlist")
     if (job.cookies && job.cookies !== "none") args.push("--cookies-from-browser", job.cookies)
@@ -279,8 +285,18 @@ Item {
 
     if (text.indexOf("OMARCHY_FILE:") === 0) {
       job.filepath = text.slice("OMARCHY_FILE:".length).trim()
+      job.fileCount = Number(job.fileCount || 0) + 1
+      job._pendingFile = job.filepath
+      pairManifest(job)
       job.progress = 100
       job.status = "processing"
+      notifySoon()
+      return
+    }
+
+    if (text.indexOf("OMARCHY_INFO:") === 0) {
+      job._pendingInfo = text.slice("OMARCHY_INFO:".length).trim()
+      pairManifest(job)
       notifySoon()
       return
     }
@@ -303,6 +319,14 @@ Item {
       job.status = job.progress >= 99.9 ? "processing" : "downloading"
       notifySoon()
     }
+  }
+
+  function pairManifest(job) {
+    if (job._pendingFile === "" || job._pendingInfo === "") return
+    job.manifest.push({ file: job._pendingFile, info: job._pendingInfo })
+    job._pendingFile = ""
+    job._pendingInfo = ""
+    notifySoon()
   }
 
   function number(value) {
@@ -399,15 +423,23 @@ Item {
         finishJob(job, "error", "The private metadata directory is missing")
         return
       }
+      if (Number(job.fileCount || 0) !== (job.manifest ? job.manifest.length : 0)) {
+        finishJob(job, "error", "Metadata records were incomplete")
+        return
+      }
+      if (!job.manifest || job.manifest.length === 0) {
+        finishJob(job, "error", "No metadata records were produced")
+        return
+      }
       job.status = "processing"
       notifyNow()
       metadataJobId = job.id
-      metadataProc.command = [
-        "python3", metadataHelper,
-        job.privateDir,
-        expandPath(job.dir),
-        job.filepath || ""
-      ]
+      metadataProc.payload = {
+        private_dir: job.privateDir,
+        outdir: expandPath(job.dir),
+        records: job.manifest
+      }
+      metadataProc.command = ["python3", metadataHelper]
       metadataProc.running = true
       return
     }
@@ -449,6 +481,10 @@ Item {
     job.error = ""
     job.filepath = ""
     job.privateDir = ""
+    job.manifest = []
+    job.fileCount = 0
+    job._pendingFile = ""
+    job._pendingInfo = ""
     notifyNow()
     pump()
   }
@@ -506,7 +542,10 @@ Item {
   // temporary metadata file. Its argv contains paths only, never the title.
   Process {
     id: metadataProc
-    command: []
+    property var payload: ({})
+    command: ["python3", metadataHelper]
+    stdinEnabled: true
+    onStarted: write(JSON.stringify(metadataProc.payload) + "\n")
     stdout: StdioCollector { waitForEnd: true }
     stderr: StdioCollector {
       id: metadataErr

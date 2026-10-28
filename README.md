@@ -121,9 +121,14 @@ The **Write metadata tags** setting does not use yt-dlp's `--embed-metadata`.
 Instead:
 
 1. yt-dlp writes an info JSON and thumbnail into a mode-0700 tmpfs directory.
-2. `bin/embed-metadata.py` reads the JSON and writes tags with mutagen (Opus)
-   or an ffmetadata file passed to ffmpeg (MP3, FLAC, M4A, WAV, MP4, MKV, WebM).
-3. The helper overwrites and deletes the info JSON, ffmetadata file, leftover
+2. yt-dlp reports the exact final `filepath` and `infojson_filename` for every
+   item, including playlist items. The helper receives that explicit manifest
+   on stdin and never searches the filesystem by remote ID.
+3. `bin/embed-metadata.py` writes tags with mutagen (Opus) or an ffmetadata file
+   passed to ffmpeg (MP3, FLAC, M4A, WAV, MP4, MKV, WebM). Every target must
+   resolve inside the selected output folder, be a regular file with one link,
+   and contain no symlinks or parent components.
+4. The helper overwrites and deletes the info JSON, ffmetadata file, leftover
    thumbnails and the temporary directory immediately after the tags are written.
 
 With an ID-only filename template, the title, artist and tag values never enter
@@ -131,6 +136,16 @@ a child process command line. The media URL is still passed to yt-dlp as usual.
 The embedded tags remain in the media file by design. For private media, use
 `%(id)s.%(ext)s` and keep the download folder at mode 0700 so other local users
 cannot read the file or its tags.
+
+The regression suite is runnable without the shell:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+It covers malicious IDs (`../`, `*`, `?`, `[]`), parent-component targets,
+absolute paths, symlinks and hard links, with decoy files outside the output
+directory that must remain unchanged.
 - **MP3 "best"** uses V0 VBR (roughly 245 kbps). Choosing 320/256/192/128/96
   kbps forces a CBR transcode.
 - **M4A "best"** keeps a matching AAC source; otherwise it re-encodes at the
@@ -195,6 +210,7 @@ manifest.json      Plugin metadata and defaults
 Panel.qml          Bar widget, popup lifecycle, notifications, IPC
 DownloadEngine.qml Sequential yt-dlp queue, progress parsing
 bin/embed-metadata.py Private tmpfs metadata helper and cleanup
+tests/             Regression tests for path confinement and link rejection
 install.sh         Installer wrapper with bar placement prompt
 Card.qml           Download popup
 JobRow.qml         One queue row
