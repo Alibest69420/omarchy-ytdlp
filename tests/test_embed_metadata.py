@@ -55,7 +55,7 @@ class MetadataHelperTests(unittest.TestCase):
     def setUp(self) -> None:
         self.top = Path(tempfile.mkdtemp(prefix="ytdlp-meta-test-"))
         self.outdir = self.top / "output"
-        self.private = self.top / "private"
+        self.private = self.top / "ytdlp-private.test"
         self.outdir.mkdir()
         self.private.mkdir(mode=0o700)
         self.outside = self.top / "outside"
@@ -78,12 +78,15 @@ class MetadataHelperTests(unittest.TestCase):
         }
 
     def run_helper(self, manifest: dict) -> subprocess.CompletedProcess:
+        env = dict(os.environ)
+        env["XDG_RUNTIME_DIR"] = str(self.top)
         return subprocess.run(
             [sys.executable, str(HELPER)],
             input=json.dumps(manifest) + "\n",
             capture_output=True,
             text=True,
             timeout=30,
+            env=env,
         )
 
     def test_single_exact_record(self) -> None:
@@ -125,8 +128,8 @@ class MetadataHelperTests(unittest.TestCase):
         make_wav(decoy)
         before = digest(decoy)
         # These IDs would have escaped or globbed under the old implementation.
-        info_one = self.info("a.info.json", {"id": "../../outside/decoy", "title": "Inside A"})
-        info_two = self.info("b.info.json", {"id": "*", "title": "Inside B"})
+        info_one = self.info("real-one.info.json", {"id": "../../outside/decoy", "title": "Inside A"})
+        info_two = self.info("real-two.info.json", {"id": "*", "title": "Inside B"})
 
         result = self.run_helper(self.manifest([
             {"file": str(first), "info": str(info_one)},
@@ -201,6 +204,16 @@ class MetadataHelperTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(digest(decoy), before)
+
+    def test_mismatched_info_name_is_rejected(self) -> None:
+        media = self.outdir / "one.wav"
+        make_wav(media)
+        info = self.info("other.info.json", {"id": "x", "title": "Wrong"})
+
+        result = self.run_helper(self.manifest([{"file": str(media), "info": str(info)}]))
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(title_of(media), "")
 
     def test_symlinked_info_is_rejected(self) -> None:
         media = self.outdir / "one.wav"

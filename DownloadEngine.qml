@@ -139,6 +139,7 @@ Item {
         privateDir: "",
         manifest: [],
         fileCount: 0,
+        _recordError: false,
         _pendingFile: "",
         _pendingInfo: "",
         error: "",
@@ -202,13 +203,13 @@ Item {
       "--progress",
       "--progress-delta", "1",
       "--no-simulate",
-      "--print", "before_dl:OMARCHY_TITLE:%(title)s",
-      "--print", "after_move:OMARCHY_FILE:%(filepath)s",
+      "--print", "before_dl:OMARCHY_TITLE:%(title)j",
+      "--print", "after_move:OMARCHY_FILE:%(filepath)j",
       "--progress-template",
       "download:OMARCHY_DL:%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s|%(progress.eta)s|%(progress._percent_str)s"
     ]
     if (job.embedMetadata)
-      args.push("--print", "after_move:OMARCHY_INFO:%(infojson_filename)s")
+      args.push("--print", "after_move:OMARCHY_INFO:%(infojson_filename)j")
 
     args.push(job.playlists ? "--yes-playlist" : "--no-playlist")
     if (job.cookies && job.cookies !== "none") args.push("--cookies-from-browser", job.cookies)
@@ -277,14 +278,20 @@ Item {
     if (text === "") return
 
     if (text.indexOf("OMARCHY_TITLE:") === 0) {
-      var title = text.slice("OMARCHY_TITLE:".length).trim()
-      if (title !== "") job.title = title
+      var title = markerValue(text, "OMARCHY_TITLE:")
+      if (typeof title === "string" && title !== "" && title !== "NA") job.title = title
       notifySoon()
       return
     }
 
     if (text.indexOf("OMARCHY_FILE:") === 0) {
-      job.filepath = text.slice("OMARCHY_FILE:".length).trim()
+      var filepath = markerValue(text, "OMARCHY_FILE:")
+      if (typeof filepath !== "string" || filepath === "" || filepath === "NA") {
+        job._recordError = true
+        notifySoon()
+        return
+      }
+      job.filepath = filepath
       job.fileCount = Number(job.fileCount || 0) + 1
       job._pendingFile = job.filepath
       pairManifest(job)
@@ -295,7 +302,13 @@ Item {
     }
 
     if (text.indexOf("OMARCHY_INFO:") === 0) {
-      job._pendingInfo = text.slice("OMARCHY_INFO:".length).trim()
+      var info = markerValue(text, "OMARCHY_INFO:")
+      if (typeof info !== "string" || info === "" || info === "NA") {
+        job._recordError = true
+        notifySoon()
+        return
+      }
+      job._pendingInfo = info
       pairManifest(job)
       notifySoon()
       return
@@ -318,6 +331,18 @@ Item {
       else if (isFinite(percent)) job.progress = Math.min(100, percent)
       job.status = job.progress >= 99.9 ? "processing" : "downloading"
       notifySoon()
+    }
+  }
+
+  function markerValue(text, prefix) {
+    var raw = String(text || "").slice(prefix.length).trim()
+    if (raw === "") return ""
+    try {
+      var parsed = JSON.parse(raw)
+      if (parsed === null || parsed === undefined) return ""
+      return typeof parsed === "string" ? parsed : String(parsed)
+    } catch (error) {
+      return null
     }
   }
 
@@ -423,6 +448,10 @@ Item {
         finishJob(job, "error", "The private metadata directory is missing")
         return
       }
+      if (job._recordError) {
+        finishJob(job, "error", "Metadata records were invalid")
+        return
+      }
       if (Number(job.fileCount || 0) !== (job.manifest ? job.manifest.length : 0)) {
         finishJob(job, "error", "Metadata records were incomplete")
         return
@@ -483,6 +512,7 @@ Item {
     job.privateDir = ""
     job.manifest = []
     job.fileCount = 0
+    job._recordError = false
     job._pendingFile = ""
     job._pendingInfo = ""
     notifyNow()

@@ -124,11 +124,13 @@ Instead:
 2. yt-dlp reports the exact final `filepath` and `infojson_filename` for every
    item, including playlist items. The helper receives that explicit manifest
    on stdin and never searches the filesystem by remote ID.
-3. `bin/embed-metadata.py` writes tags with mutagen (Opus) or an ffmetadata file
+3. The file, info and title markers are JSON-encoded, so a malicious title or
+   path cannot inject extra manifest lines.
+4. `bin/embed-metadata.py` writes tags with mutagen (Opus) or an ffmetadata file
    passed to ffmpeg (MP3, FLAC, M4A, WAV, MP4, MKV, WebM). Every target must
    resolve inside the selected output folder, be a regular file with one link,
    and contain no symlinks or parent components.
-4. The helper overwrites and deletes the info JSON, ffmetadata file, leftover
+5. The helper overwrites and deletes the info JSON, ffmetadata file, leftover
    thumbnails and the temporary directory immediately after the tags are written.
 
 With an ID-only filename template, the title, artist and tag values never enter

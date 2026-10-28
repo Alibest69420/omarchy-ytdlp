@@ -212,6 +212,21 @@ def main() -> int:
     if private_lexical.is_symlink():
         log("private directory is a symlink")
         return 1
+    if not private_lexical.name.startswith("ytdlp-private."):
+        log("unexpected private directory name")
+        return 1
+    if stat.S_IMODE(private_resolved.stat().st_mode) != 0o700:
+        log("private directory is not mode 0700")
+        return 1
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or "/dev/shm").resolve()
+    if private_resolved.parent != runtime:
+        log("private directory is outside the runtime directory")
+        return 1
+    if (private_resolved == out_resolved
+            or private_resolved.is_relative_to(out_resolved)
+            or out_resolved.is_relative_to(private_resolved)):
+        log("private and output directories overlap")
+        return 1
 
     seen_info: set[Path] = set()
     seen_media: set[Path] = set()
@@ -228,6 +243,8 @@ def main() -> int:
                 raise ValueError("info is not an info JSON file")
             if media_path.name.endswith(".info.json"):
                 raise ValueError("media is an info JSON file")
+            if info_path.name != media_path.stem + ".info.json":
+                raise ValueError("info does not belong to this media file")
             if media_path.is_relative_to(private_resolved):
                 raise ValueError("media is inside the metadata directory")
             if info_path in seen_info or media_path in seen_media:
