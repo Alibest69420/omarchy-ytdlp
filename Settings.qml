@@ -346,7 +346,7 @@ FocusScope {
 
       SettingsToggle {
         label: "Write metadata tags"
-        description: "Title, artist, date and other tags from the source."
+        description: "Title, artist, date and other tags, applied privately by a local helper."
         checked: page.embedMetadata
         foreground: page.fg
         fontFamily: page.fontFamily
@@ -360,6 +360,15 @@ FocusScope {
         foreground: page.fg
         fontFamily: page.fontFamily
         onToggled: page.embedThumbnail = !page.embedThumbnail
+      }
+
+      Text {
+        width: parent.width
+        text: "Temporary metadata and thumbnails are held in RAM, then overwritten and removed after the tags are written."
+        color: page.dim
+        font.family: page.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
       }
 
       Text {

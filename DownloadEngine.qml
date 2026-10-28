@@ -8,8 +8,10 @@ import "Formats.js" as Formats
 // --progress-template output, so no scraping of human-readable log lines is
 // needed.
 //
-// An Item rather than a QtObject: QtObject has no default child property, and
-// Process/Timer need to be declared as children.
+// Metadata embedding is a separate private post-processing step. yt-dlp writes
+// its info JSON and thumbnail into a 0700 tmpfs directory, then
+// bin/embed-metadata.py writes tags from there. The title never enters a child
+// process argument, and the temporary metadata is overwritten and removed.
 Item {
   id: engine
 
@@ -27,7 +29,14 @@ Item {
   property string lastStderr: ""
   property var lastCommand: []
   property int statJobId: -1
+  property int metadataJobId: -1
   property bool _dirty: false
+
+  readonly property string metadataHelper: {
+    var raw = String(Qt.resolvedUrl("bin/embed-metadata.py"))
+    if (raw.indexOf("file://") === 0) raw = raw.slice(7)
+    try { return decodeURIComponent(raw) } catch (error) { return raw }
+  }
 
   signal changed()
   signal finished(var job)
@@ -127,6 +136,7 @@ Item {
         speed: 0,
         eta: -1,
         filepath: "",
+        privateDir: "",
         error: "",
         playlists: Boolean(options.playlists),
         cookies: String(options.cookies),
@@ -158,14 +168,26 @@ Item {
     notifyNow()
     started(next)
 
-    var command = buildCommand(next)
+    if (next.embedMetadata && metadataHelper === "") {
+      finishJob(next, "error", "The private metadata helper is missing")
+      return
+    }
+
+    if (next.embedMetadata || next.embedThumbnail) {
+      var base = Quickshell.env("XDG_RUNTIME_DIR") || "/dev/shm"
+      privateDirProc.command = ["mktemp", "-d", base + "/ytdlp-private.XXXXXXXX"]
+      privateDirProc.running = true
+      return
+    }
+
+    startProc(next)
+  }
+
+  function startProc(job) {
+    var command = buildCommand(job)
     lastCommand = command
     proc.command = command
     proc.running = true
-  }
-
-  function isAudioFormat(format) {
-    return !Formats.isVideo(format)
   }
 
   function buildCommand(job) {
@@ -186,6 +208,16 @@ Item {
     if (job.cookies && job.cookies !== "none") args.push("--cookies-from-browser", job.cookies)
     args.push("-P", expandPath(job.dir))
     args.push("-o", job.template || "%(title)s.%(ext)s")
+
+    if (job.embedMetadata) {
+      // The JSON and any thumbnail live only in the private tmpfs directory.
+      args.push("--write-info-json")
+      args.push("-P", "infojson:" + job.privateDir)
+    }
+    if (job.embedThumbnail) {
+      args.push("-P", "thumbnail:" + job.privateDir)
+      args.push("-o", "thumbnail:%(id)s.%(ext)s")
+    }
 
     var format = job.format
     if (Formats.isVideo(format)) {
@@ -226,7 +258,8 @@ Item {
       }
     }
 
-    if (job.embedMetadata) args.push("--embed-metadata")
+    // Metadata is written after yt-dlp by embed-metadata.py, not by yt-dlp:
+    // yt-dlp would put the tag values into ffmpeg's command line.
     args.push(job.url)
     return args
   }
@@ -294,6 +327,49 @@ Item {
     return ""
   }
 
+  function cleanupPrivate(job) {
+    if (!job || !job.privateDir) return
+    var dir = String(job.privateDir)
+    job.privateDir = ""
+    if (dir.indexOf("ytdlp-private.") >= 0)
+      Quickshell.execDetached(["rm", "-rf", "--", dir])
+  }
+
+  function startStat(job) {
+    if (!job || !job.filepath) return
+    statJobId = job.id
+    statProc.command = ["stat", "-c", "%s", "--", job.filepath]
+    statProc.running = true
+  }
+
+  function finishJob(job, status, message) {
+    if (!job) {
+      activeJobId = -1
+      pump()
+      return
+    }
+
+    job.status = status
+    job.error = message || ""
+    job.speed = 0
+    job.eta = -1
+
+    if (status === "done") {
+      job.progress = 100
+      if (job.filepath) startStat(job)
+      else if (!(job.total > 0)) job.total = job.downloaded
+    } else if (status === "cancelled") {
+      job.progress = 0
+    }
+
+    cleanupPrivate(job)
+    activeJobId = -1
+    cancelRequested = false
+    notifyNow()
+    if (status === "done" || status === "error") finished(job)
+    pump()
+  }
+
   function handleExit(exitCode) {
     var job = currentJob
     if (!job) {
@@ -308,28 +384,35 @@ Item {
     job.eta = -1
 
     if (cancelled) {
-      job.status = "cancelled"
-      job.progress = 0
-    } else if (exitCode === 0) {
-      job.status = "done"
-      job.progress = 100
-      if (job.filepath) {
-        statJobId = job.id
-        statProc.command = ["stat", "-c", "%s", "--", job.filepath]
-        statProc.running = true
-      } else if (!(job.total > 0)) {
-        job.total = job.downloaded
-      }
-    } else {
-      job.status = "error"
-      job.error = lastError(stderrText) || ("yt-dlp exited with code " + exitCode)
-      lastStderr = String(stderrText || "")
+      finishJob(job, "cancelled", "")
+      return
     }
 
-    activeJobId = -1
-    notifyNow()
-    if (job.status === "done" || job.status === "error") finished(job)
-    pump()
+    if (exitCode !== 0) {
+      lastStderr = String(stderrText || "")
+      finishJob(job, "error", lastError(stderrText) || ("yt-dlp exited with code " + exitCode))
+      return
+    }
+
+    if (job.embedMetadata) {
+      if (!job.privateDir) {
+        finishJob(job, "error", "The private metadata directory is missing")
+        return
+      }
+      job.status = "processing"
+      notifyNow()
+      metadataJobId = job.id
+      metadataProc.command = [
+        "python3", metadataHelper,
+        job.privateDir,
+        expandPath(job.dir),
+        job.filepath || ""
+      ]
+      metadataProc.running = true
+      return
+    }
+
+    finishJob(job, "done", "")
   }
 
   function cancel(id) {
@@ -338,6 +421,7 @@ Item {
     var job = jobs[index]
     if (job.status === "queued") {
       job.status = "cancelled"
+      cleanupPrivate(job)
       notifyNow()
       return
     }
@@ -345,14 +429,17 @@ Item {
     cancelRequested = true
     job.status = "cancelling"
     notifyNow()
-    if (proc.running) proc.running = false
-    else handleExit(130)
+    if (privateDirProc.running) privateDirProc.running = false
+    else if (proc.running) proc.running = false
+    else if (metadataProc.running) metadataProc.running = false
+    else finishJob(job, "cancelled", "")
   }
 
   function retry(id) {
     var job = jobById(id)
     if (!job) return
     if (job.status !== "error" && job.status !== "cancelled") return
+    cleanupPrivate(job)
     job.status = "queued"
     job.progress = 0
     job.downloaded = 0
@@ -361,6 +448,7 @@ Item {
     job.eta = -1
     job.error = ""
     job.filepath = ""
+    job.privateDir = ""
     notifyNow()
     pump()
   }
@@ -369,11 +457,76 @@ Item {
     var kept = []
     for (var i = 0; i < jobs.length; i++) {
       var status = jobs[i].status
-      if (status === "done" || status === "error" || status === "cancelled") continue
+      if (status === "done" || status === "error" || status === "cancelled") {
+        cleanupPrivate(jobs[i])
+        continue
+      }
       kept.push(jobs[i])
     }
     jobs = kept
     notifyNow()
+  }
+
+  // Create an unpredictable, mode-0700 tmpfs directory for metadata. mktemp
+  // guarantees the directory did not already exist.
+  Process {
+    id: privateDirProc
+    command: []
+    stdout: StdioCollector {
+      id: privateDirOut
+      waitForEnd: true
+    }
+    onExited: function(exitCode) {
+      var job = engine.currentJob
+      if (!job) {
+        engine.pump()
+        return
+      }
+      if (engine.cancelRequested || job.status === "cancelling") {
+        engine.cancelRequested = false
+        engine.finishJob(job, "cancelled", "")
+        return
+      }
+      if (exitCode !== 0) {
+        engine.finishJob(job, "error", "Could not create a private metadata directory")
+        return
+      }
+      var dir = String(privateDirOut.text || "").trim()
+      if (dir === "") {
+        engine.finishJob(job, "error", "Could not create a private metadata directory")
+        return
+      }
+      job.privateDir = dir
+      engine.notifyNow()
+      engine.startProc(job)
+    }
+  }
+
+  // The helper reads the private info JSON, writes tags, and removes every
+  // temporary metadata file. Its argv contains paths only, never the title.
+  Process {
+    id: metadataProc
+    command: []
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector {
+      id: metadataErr
+      waitForEnd: true
+    }
+    onExited: function(exitCode) {
+      var job = engine.jobById(engine.metadataJobId)
+      engine.metadataJobId = -1
+      if (!job) {
+        engine.pump()
+        return
+      }
+      if (engine.cancelRequested || job.status === "cancelling") {
+        engine.cancelRequested = false
+        engine.finishJob(job, "cancelled", "")
+        return
+      }
+      if (exitCode === 0) engine.finishJob(job, "done", "")
+      else engine.finishJob(job, "error", "Metadata could not be written privately")
+    }
   }
 
   // The download size is not the final file size after audio conversion, so

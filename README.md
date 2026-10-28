@@ -17,8 +17,8 @@ with `yt-dlp` without leaving the desktop.
 
 - Omarchy 4.x (the Quickshell shell with the plugin system)
 - `yt-dlp` and `ffmpeg` (both are present on a stock Omarchy install)
-- `python-mutagen` for cover art on Opus/FLAC (MP3/M4A cover art works
-  without it)
+- `python-mutagen` for Opus cover art and Opus text tags, and for FLAC cover
+  art (MP3/M4A cover art works without it)
 - `zenity` for the folder picker (stock Omarchy install)
 - `wl-paste` for clipboard prefill (stock Omarchy install)
 
@@ -114,6 +114,23 @@ plugin. It:
   Opus; yt-dlp copies a matching source stream instead of re-encoding it.
   Cover art for Opus and FLAC needs `python-mutagen`; without it the plugin
   skips the cover instead of failing the download.
+
+## Private metadata
+
+The **Write metadata tags** setting does not use yt-dlp's `--embed-metadata`.
+Instead:
+
+1. yt-dlp writes an info JSON and thumbnail into a mode-0700 tmpfs directory.
+2. `bin/embed-metadata.py` reads the JSON and writes tags with mutagen (Opus)
+   or an ffmetadata file passed to ffmpeg (MP3, FLAC, M4A, WAV, MP4, MKV, WebM).
+3. The helper overwrites and deletes the info JSON, ffmetadata file, leftover
+   thumbnails and the temporary directory immediately after the tags are written.
+
+With an ID-only filename template, the title, artist and tag values never enter
+a child process command line. The media URL is still passed to yt-dlp as usual.
+The embedded tags remain in the media file by design. For private media, use
+`%(id)s.%(ext)s` and keep the download folder at mode 0700 so other local users
+cannot read the file or its tags.
 - **MP3 "best"** uses V0 VBR (roughly 245 kbps). Choosing 320/256/192/128/96
   kbps forces a CBR transcode.
 - **M4A "best"** keeps a matching AAC source; otherwise it re-encodes at the
@@ -177,6 +194,7 @@ active downloads and clears the queue. Finished files stay in their folders.
 manifest.json      Plugin metadata and defaults
 Panel.qml          Bar widget, popup lifecycle, notifications, IPC
 DownloadEngine.qml Sequential yt-dlp queue, progress parsing
+bin/embed-metadata.py Private tmpfs metadata helper and cleanup
 install.sh         Installer wrapper with bar placement prompt
 Card.qml           Download popup
 JobRow.qml         One queue row
