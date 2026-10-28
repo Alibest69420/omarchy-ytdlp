@@ -29,7 +29,7 @@
       "flac"
     ],
     "allowMultiple": false,
-    "defaultSection": "right",
+    "defaultSection": "left",
     "defaults": {
       "defaultFormat": "opus",
       "defaultQuality": "best",

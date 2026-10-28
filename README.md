@@ -39,7 +39,7 @@ omarchy-shell shell rescanPlugins
 omarchy plugin enable ddrglazer.ytdlp
 ```
 
-It lands in the right side of the bar by default. Move it with:
+It lands in the left side of the bar by default. Move it with:
 
 ```bash
 omarchy bar move ddrglazer.ytdlp --section right --index 4
