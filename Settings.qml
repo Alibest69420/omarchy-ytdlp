@@ -45,7 +45,7 @@ FocusScope {
 
   function begin() {
     var format = String(setting("defaultFormat", "opus"))
-    if (!Formats.formatEntry(format)) format = "opus"
+    if (!Formats.hasFormat(format)) format = "opus"
     formatDrop.value = format
     qualityDrop.options = Formats.qualityOptions(format)
     var quality = String(setting("defaultQuality", "best"))

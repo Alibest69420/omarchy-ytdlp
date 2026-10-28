@@ -108,6 +108,8 @@ Item {
   function enqueue(urls, format, quality, directory) {
     var list = urls || []
     if (list.length === 0) return
+    if (!Formats.hasFormat(format)) format = "opus"
+    if (!Formats.hasQuality(format, quality)) quality = "best"
     for (var i = 0; i < list.length; i++) {
       var url = String(list[i] || "").trim()
       if (url === "") continue

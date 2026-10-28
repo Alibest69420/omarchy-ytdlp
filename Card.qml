@@ -44,7 +44,7 @@ FocusScope {
     if (_initialized || !panel) return
     _initialized = true
     var format = String(panel.setting("defaultFormat", "opus"))
-    if (!Formats.formatEntry(format)) format = "opus"
+    if (!Formats.hasFormat(format)) format = "opus"
     formatDrop.value = format
 
     var options = Formats.qualityOptions(format)

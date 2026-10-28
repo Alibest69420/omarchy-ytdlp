@@ -40,6 +40,10 @@ function formatEntry(format) {
   return all[0]
 }
 
+function hasFormat(format) {
+  return allFormats().some(function(entry) { return entry.value === format })
+}
+
 function formatLabel(format) {
   return formatEntry(format).label
 }
