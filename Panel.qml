@@ -23,6 +23,14 @@ Panel {
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
+  // Bar glyph size. The download glyph's ink is naturally narrow, so it reads
+  // smaller than the surrounding text at the stock 12px bar icon size.
+  readonly property int barGlyphSize: {
+    var size = Number(setting("barIconSize", 20))
+    if (!isFinite(size)) size = 18
+    return Math.max(12, Math.min(22, Math.round(size)))
+  }
+
   property bool settingsOpen: false
   property bool toolsOk: true
   property bool mutagenOk: false
@@ -299,7 +307,7 @@ Panel {
     activeColor: root.accent
     active: root.engine.busy
     fontFamily: root.fontFamily
-    fontSize: Style.bar.iconFont
+    fontSize: root.barGlyphSize
     horizontalMargin: Style.space(7)
     fixedWidth: button.bar && button.bar.vertical ? -1
       : Math.max(Style.bar.iconSlot, (root.engine.currentJob || root.engine.queuedCount > 0)

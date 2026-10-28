@@ -56,6 +56,7 @@ FocusScope {
     favoritesField.text = String(setting("favorites", ""))
     templateField.text = String(setting("filenameTemplate", "%(title)s.%(ext)s"))
     cookiesDrop.value = String(setting("cookiesBrowser", "none"))
+    iconSizeDrop.value = String(Math.max(12, Math.min(22, Number(setting("barIconSize", 20)) || 20)))
 
     playlists = Boolean(setting("playlists", false))
     embedMetadata = Boolean(setting("embedMetadata", true))
@@ -66,6 +67,7 @@ FocusScope {
 
   function collect() {
     return {
+      barIconSize: Number(iconSizeDrop.value),
       defaultFormat: formatDrop.value,
       defaultQuality: qualityDrop.value,
       audioDir: audioDirField.text.trim() || "~/Music",
@@ -388,6 +390,49 @@ FocusScope {
       Text {
         width: parent.width
         text: "Useful for age-restricted or members-only links. The browser must be installed; close it if yt-dlp cannot read its cookie database."
+        color: page.dim
+        font.family: page.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
+      }
+
+      PanelSeparator { width: parent.width; foreground: page.fg }
+
+      PanelSeparator { width: parent.width; foreground: page.fg }
+
+      PanelSectionHeader {
+        text: "BAR"
+        foreground: page.fg
+        fontFamily: page.fontFamily
+      }
+
+      Text {
+        width: parent.width
+        text: "Icon size"
+        color: page.fg
+        font.family: page.fontFamily
+        font.pixelSize: Style.font.body
+      }
+
+      Dropdown {
+        id: iconSizeDrop
+        width: parent.width
+        value: "20"
+        options: [
+          { value: "14", label: "14 px" },
+          { value: "16", label: "16 px" },
+          { value: "18", label: "18 px" },
+          { value: "20", label: "20 px (default)" },
+          { value: "22", label: "22 px" }
+        ]
+        foreground: page.fg
+        accent: page.accent
+        fontFamily: page.fontFamily
+      }
+
+      Text {
+        width: parent.width
+        text: "The glyph inside the 25px bar slot. Changes apply immediately after Apply."
         color: page.dim
         font.family: page.fontFamily
         font.pixelSize: Style.font.caption
