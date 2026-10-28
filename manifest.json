@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "ddrglazer.ytdlp",
+  "name": "yt-dlp Downloads",
+  "version": "1.0.0",
+  "author": "ddrglazer",
+  "description": "Download audio and video with yt-dlp from the Omarchy bar: Opus, MP3, FLAC, M4A, WAV, MP4, MKV and WebM, with per-download quality and folder choices.",
+  "license": "MIT",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "yt-dlp Downloads",
+    "description": "Paste a link, pick a format, quality and folder, and download with yt-dlp. The queue keeps running when the popup closes.",
+    "category": "Media",
+    "aliases": [
+      "ytdlp",
+      "yt-dlp",
+      "download",
+      "downloads",
+      "music",
+      "audio",
+      "video",
+      "opus",
+      "mp3",
+      "flac"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "defaultFormat": "opus",
+      "defaultQuality": "best",
+      "audioDir": "~/Music",
+      "videoDir": "~/Videos",
+      "favorites": "",
+      "filenameTemplate": "%(title)s.%(ext)s",
+      "cookiesBrowser": "none",
+      "playlists": false,
+      "embedMetadata": true,
+      "embedThumbnail": true,
+      "notifications": true,
+      "autoPaste": true
+    }
+  }
+}
