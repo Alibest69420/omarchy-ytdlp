@@ -86,7 +86,7 @@ The settings page writes plain values into this widget's inline entry in
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `barIconSize` | `20` | Bar glyph size in pixels (12–22) |
+| `barIconSize` | `16` | Bar glyph size in pixels (12–22) |
 | `defaultFormat` | `opus` | Format for new downloads |
 | `defaultQuality` | `best` | Quality for new downloads |
 | `audioDir` | `~/Music` | Default audio folder |

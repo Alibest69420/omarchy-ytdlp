@@ -26,7 +26,7 @@ Panel {
   // Bar glyph size. The download glyph's ink is naturally narrow, so it reads
   // smaller than the surrounding text at the stock 12px bar icon size.
   readonly property int barGlyphSize: {
-    var size = Number(setting("barIconSize", 20))
+    var size = Number(setting("barIconSize", 16))
     if (!isFinite(size)) size = 18
     return Math.max(12, Math.min(22, Math.round(size)))
   }

@@ -31,7 +31,7 @@
     "allowMultiple": false,
     "defaultSection": "left",
     "defaults": {
-      "barIconSize": 20,
+      "barIconSize": 16,
       "defaultFormat": "opus",
       "defaultQuality": "best",
       "audioDir": "~/Music",

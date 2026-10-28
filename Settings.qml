@@ -56,7 +56,7 @@ FocusScope {
     favoritesField.text = String(setting("favorites", ""))
     templateField.text = String(setting("filenameTemplate", "%(title)s.%(ext)s"))
     cookiesDrop.value = String(setting("cookiesBrowser", "none"))
-    iconSizeDrop.value = String(Math.max(12, Math.min(22, Number(setting("barIconSize", 20)) || 20)))
+    iconSizeDrop.value = String(Math.max(12, Math.min(22, Number(setting("barIconSize", 16)) || 16)))
 
     playlists = Boolean(setting("playlists", false))
     embedMetadata = Boolean(setting("embedMetadata", true))
@@ -417,12 +417,12 @@ FocusScope {
       Dropdown {
         id: iconSizeDrop
         width: parent.width
-        value: "20"
+        value: "16"
         options: [
           { value: "14", label: "14 px" },
-          { value: "16", label: "16 px" },
+          { value: "16", label: "16 px (default)" },
           { value: "18", label: "18 px" },
-          { value: "20", label: "20 px (default)" },
+          { value: "20", label: "20 px" },
           { value: "22", label: "22 px" }
         ]
         foreground: page.fg
