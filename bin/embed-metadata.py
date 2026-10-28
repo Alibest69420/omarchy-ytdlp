@@ -127,7 +127,7 @@ def shred(path: Path) -> None:
         pass
 
 def ff_escape(value: str) -> str:
-    return "".join("\\" + char if char in "\\=;#\n" else char for char in value)
+    return "".join("\\" + char if char in "\\=;#\n\r" else char for char in value)
 
 def write_ffmeta(path: Path, tags: dict[str, str]) -> None:
     lines = [";FFMETADATA1"]

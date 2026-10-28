@@ -548,6 +548,11 @@ Item {
         engine.pump()
         return
       }
+      // Capture the path even if we are cancelling or mktemp failed after
+      // creating it, so finishJob can remove the tmpfs directory.
+      var dir = String(privateDirOut.text || "").trim()
+      if (dir !== "" && dir.indexOf("ytdlp-private.") >= 0)
+        job.privateDir = dir
       if (engine.cancelRequested || job.status === "cancelling") {
         engine.cancelRequested = false
         engine.finishJob(job, "cancelled", "")
@@ -557,7 +562,6 @@ Item {
         engine.finishJob(job, "error", "Could not create a private metadata directory")
         return
       }
-      var dir = String(privateDirOut.text || "").trim()
       if (dir === "") {
         engine.finishJob(job, "error", "Could not create a private metadata directory")
         return
