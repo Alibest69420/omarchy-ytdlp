@@ -164,6 +164,7 @@ FocusScope {
       title: "yt-dlp"
       meta: !card.panel || !card.panel.toolsOk ? "YT-DLP OR FFMPEG MISSING"
         : card.engine && card.engine.busy ? "DOWNLOADING"
+        : card.panel.ytdlpVersion !== "" ? "AUDIO & VIDEO · " + card.panel.ytdlpVersion
         : "AUDIO & VIDEO"
       detail: card.engine && card.engine.busy ? Math.round(card.engine.progress) + "%"
         : card.engine && card.engine.queuedCount > 0 ? card.engine.queuedCount + " queued"

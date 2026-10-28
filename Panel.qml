@@ -34,6 +34,7 @@ Panel {
   property bool settingsOpen: false
   property bool toolsOk: true
   property bool mutagenOk: false
+  property string ytdlpVersion: ""
   property string toolError: ""
   property string lastSubmittedUrl: ""
   property string lastCompletedDir: ""
@@ -182,6 +183,7 @@ Panel {
 
   onOpenedChanged: {
     if (opened) {
+      if (!versionProc.running) versionProc.running = true
       Qt.callLater(function() {
         if (root.opened && !root.settingsOpen) card.maybeAutoPaste()
       })
@@ -193,6 +195,7 @@ Panel {
   Component.onCompleted: {
     toolsProc.running = true
     mutagenProc.running = true
+    versionProc.running = true
   }
 
   Process {
@@ -209,6 +212,18 @@ Panel {
     id: mutagenProc
     command: ["python3", "-c", "import mutagen"]
     onExited: function(exitCode) { root.mutagenOk = exitCode === 0 }
+  }
+
+  Process {
+    id: versionProc
+    command: ["yt-dlp", "--version"]
+    stdout: StdioCollector {
+      id: versionOut
+      waitForEnd: true
+    }
+    onExited: function(exitCode) {
+      if (exitCode === 0) root.ytdlpVersion = String(versionOut.text || "").trim()
+    }
   }
 
   DownloadEngine {
@@ -288,6 +303,7 @@ Panel {
         done: root.engine.doneCount,
         errors: root.engine.errorCount,
         mutagenOk: root.mutagenOk,
+        ytdlpVersion: root.ytdlpVersion,
         lastCommand: root.engine.lastCommand,
         lastStderr: root.engine.lastStderr,
         jobs: root.engine.jobs

@@ -128,7 +128,7 @@ FocusScope {
       PanelHero {
         width: parent.width
         title: "Settings"
-        meta: "YT-DLP DOWNLOADS"
+        meta: "YT-DLP DOWNLOADS" + (page.panel && page.panel.ytdlpVersion !== "" ? " · " + page.panel.ytdlpVersion : "")
         foreground: page.fg
         fontFamily: page.fontFamily
 
