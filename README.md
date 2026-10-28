@@ -31,8 +31,14 @@ ffmpeg -version
 
 ## Install
 
-A plugin is just a folder with `manifest.json`. Copy this directory to
-`~/.config/omarchy/plugins/ddrglazer.ytdlp/`, then enable it:
+Install from GitHub:
+
+```bash
+omarchy plugin add https://github.com/Alibest69420/omarchy-ytdlp.git --enable
+```
+
+Or install a local checkout by copying this directory to
+`~/.config/omarchy/plugins/ddrglazer.ytdlp/`, then:
 
 ```bash
 omarchy-shell shell rescanPlugins
@@ -45,11 +51,30 @@ It lands in the left side of the bar by default. Move it with:
 omarchy bar move ddrglazer.ytdlp --section right --index 4
 ```
 
-If you publish the repo, install it with:
+## Remove
 
 ```bash
-omarchy plugin add https://github.com/<you>/omarchy-ytdlp.git --enable
+omarchy plugin disable ddrglazer.ytdlp
+omarchy plugin remove ddrglazer.ytdlp --yes
 ```
+
+`disable` takes it off the bar; `remove` deletes the plugin folder. Saved
+settings remain in `~/.config/omarchy/shell.json`; delete the
+`ddrglazer.ytdlp` entry there if you want to clear them too.
+
+## Safety
+
+This plugin runs unsandboxed inside `omarchy-shell`, like every Omarchy shell
+plugin. It:
+
+- writes only its own inline entry in `~/.config/omarchy/shell.json`, and only
+  when you press **Apply** in settings
+- writes downloads only to folders you choose
+- never uses `sudo` and does not modify system configuration
+- invokes `yt-dlp`, `ffmpeg`, `zenity`, `wl-paste`, `xdg-open`, `stat`, and
+  `omarchy-notification-send`
+
+`yt-dlp` downloads from the URLs you paste, so normal network access applies.
 
 ## Use
 
