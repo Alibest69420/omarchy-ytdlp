@@ -239,6 +239,9 @@ Item {
       } else {
         selector = "bv*" + cap + "+ba/b" + cap
         args.push("--merge-output-format", "mkv")
+        // --merge-output-format is ignored when no merge is required, so remux
+        // single-file sources (for example a pre-muxed MP4) into MKV as well.
+        args.push("--remux-video", "mkv")
       }
       args.push("-f", selector)
     } else {

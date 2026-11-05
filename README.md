@@ -157,7 +157,8 @@ directory that must remain unchanged.
   popup says this when either is selected.
 - **Video** downloads the best video and best audio streams with yt-dlp, capped
   at the resolution you choose. MP4 prefers MP4/AAC streams and merges to MP4;
-  WebM stays WebM; MKV accepts the best available streams.
+  WebM stays WebM; MKV accepts the best available streams and remuxes
+  single-file sources into MKV.
 
 ## Settings
 
