@@ -233,9 +233,15 @@ Item {
       if (format === "mp4") {
         selector = "bv*" + cap + "[ext=mp4]+ba[ext=m4a]/b" + cap + "[ext=mp4]/bv*" + cap + "+ba/b" + cap
         args.push("--merge-output-format", "mp4")
+        // --merge-output-format is ignored when no merge is required, so remux
+        // single-file sources into MP4 as well.
+        args.push("--remux-video", "mp4")
       } else if (format === "webm") {
-        selector = "bv*" + cap + "[ext=webm]+ba[ext=webm]/b" + cap + "[ext=webm]"
-        args.push("--merge-output-format", "webm")
+        selector = "bv*" + cap + "[ext=webm]+ba[ext=webm]/b" + cap + "[ext=webm]/bv*" + cap + "+ba/b" + cap
+        // WebM only supports VP8/VP9/AV1 video with Vorbis/Opus audio, so a
+        // non-WebM source must be re-encoded rather than remuxed. yt-dlp skips
+        // this when the download is already WebM.
+        args.push("--recode-video", "webm")
       } else {
         selector = "bv*" + cap + "+ba/b" + cap
         args.push("--merge-output-format", "mkv")

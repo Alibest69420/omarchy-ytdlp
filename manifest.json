@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ddrglazer.ytdlp",
   "name": "yt-dlp Downloads",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "ddrglazer",
   "description": "Download audio and video with yt-dlp from the Omarchy bar: Opus, MP3, FLAC, M4A, WAV, MP4, MKV and WebM, with per-download quality and folder choices.",
   "license": "MIT",

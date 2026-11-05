@@ -156,9 +156,10 @@ directory that must remain unchanged.
   conversion preserves what the source has; it cannot restore detail. The
   popup says this when either is selected.
 - **Video** downloads the best video and best audio streams with yt-dlp, capped
-  at the resolution you choose. MP4 prefers MP4/AAC streams and merges to MP4;
-  WebM stays WebM; MKV accepts the best available streams and remuxes
-  single-file sources into MKV.
+  at the resolution you choose. MP4 prefers MP4/AAC streams and remuxes
+  single-file sources into MP4; MKV accepts the best available streams and
+  remuxes them into MKV; WebM keeps WebM sources and re-encodes other sources
+  to WebM, since WebM only supports VP8/VP9/AV1 video with Vorbis/Opus audio.
 
 ## Settings
 
